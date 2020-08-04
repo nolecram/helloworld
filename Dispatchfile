@@ -1,0 +1,58 @@
+#!mesosphere/dispatch-cue:v0.3
+
+resource "helloworld-git": {
+  type: "git"
+  param: url: "$(context.git.url)"
+  param: revision: "$(context.git.commit)"
+}
+
+resource "docker-image": {
+  type: "image"
+  param: url: "docker.io/$YOURDOCKERUSERNAME/helloworld"
+  param: digest: "$(inputs.resources.docker-image.digest)"
+}
+
+task "build": {
+  inputs: ["helloworld-git"]
+  outputs: ["docker-image"]
+
+  steps: [
+    {
+      name: "docker-image"
+      image: "chhsiao/kaniko-executor"
+      args: [
+        "--destination=$(outputs.resources.docker-image.url)",
+        "--context=/workspace/helloworld-git",
+        "--oci-layout-path=/workspace/output/docker-image",
+        "--dockerfile=/workspace/helloworld-git/Dockerfile"
+      ]
+    }
+  ]
+}
+
+task "unit-test-simple": {
+  inputs: ["docker-image", "helloworld-git"]
+
+  steps: [
+    {
+      name: "unit-test-simple",
+      image: "$YOURDOCKERUSERNAME/helloworld:$(context.build.name)",
+      workingDir: "/workspace/helloworld-git/",
+      command: ["go", "test", "./..."]
+    }
+  ]
+}
+
+actions: [
+  {
+    tasks: ["unit-test-simple"]
+    on: pull_request: {}
+  },
+  {
+    tasks: ["unit-test-simple"]
+    on: pull_request: {
+      chatops: ["test"]
+    }
+  }
+]
+EOF
