@@ -23,3 +23,4 @@ func Test_World(t *testing.T) {
         t.Fail()
     }
 }
+EOF
